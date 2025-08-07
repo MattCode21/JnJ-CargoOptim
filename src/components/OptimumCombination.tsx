@@ -4,7 +4,7 @@ import { useDropzone } from 'react-dropzone';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { CategoryType } from '../App';
-import { findOptimalCombination } from '../utils/combinationAlgorithm';
+import { apiService, CombinationResult } from '../services/api';
 
 interface OptimumCombinationProps {
   category: CategoryType;
@@ -18,13 +18,6 @@ interface Product {
   width: number;
   height: number;
   volume: number;
-}
-
-interface CombinationResult {
-  product: Product;
-  quantity: number;
-  totalWeight: number;
-  totalVolume: number;
 }
 
 const OptimumCombination: React.FC<OptimumCombinationProps> = ({ category }) => {
@@ -90,11 +83,19 @@ const OptimumCombination: React.FC<OptimumCombinationProps> = ({ category }) => 
     
     setIsProcessing(true);
     
-    const masterCartonVolume = masterCartonDims.length * masterCartonDims.width * masterCartonDims.height;
-    const combination = findOptimalCombination(products, masterCartonVolume, maxWeight);
-    
-    setResult(combination);
-    setIsProcessing(false);
+    try {
+      const combination = await apiService.calculateOptimalCombination(
+        products,
+        masterCartonDims,
+        maxWeight
+      );
+      setResult(combination);
+    } catch (error) {
+      console.error('Calculation error:', error);
+      alert('Error calculating optimal combination. Please try again.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const downloadResult = () => {

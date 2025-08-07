@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Play, Container, Eye, MessageSquare } from 'lucide-react';
 import { CategoryType } from '../../App';
 import ThreeDViewer from '../ThreeDViewer';
-import { calculateContainerPacking } from '../../utils/packingAlgorithms';
+import { apiService, PackingResult } from '../../services/api';
 
 interface ContainerTabProps {
   category: CategoryType;
@@ -13,15 +13,6 @@ interface ContainerPackingData {
   palletWeight: number;
   containerType: '20ft' | '40ft';
   unit: string;
-}
-
-interface ContainerPackingResult {
-  maxPallets: number;
-  totalWeight: number;
-  spaceUtilization: number;
-  weightUtilization: number;
-  positions: Array<{ x: number; y: number; z: number; rotation: { x: number; y: number; z: number } }>;
-  arrangement: { rows: number; columns: number; layers: number };
 }
 
 const CONTAINER_SPECS = {
@@ -43,7 +34,7 @@ const ContainerTab: React.FC<ContainerTabProps> = ({ category }) => {
     unit: 'cm'
   });
   
-  const [packingResult, setPackingResult] = useState<ContainerPackingResult | null>(null);
+  const [packingResult, setPackingResult] = useState<PackingResult | null>(null);
   const [showViewer, setShowViewer] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -52,22 +43,27 @@ const ContainerTab: React.FC<ContainerTabProps> = ({ category }) => {
     
     setIsProcessing(true);
     
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    const containerDims = CONTAINER_SPECS[packingData.containerType].internal;
-    const containerMaxWeight = CONTAINER_SPECS[packingData.containerType].maxWeight;
-    
-    const result = calculateContainerPacking(
-      packingData.palletDimensions,
-      packingData.palletWeight,
-      containerDims,
-      containerMaxWeight
-    );
-    
-    setPackingResult(result);
-    setShowViewer(true);
-    setIsProcessing(false);
+    try {
+      const containerDims = CONTAINER_SPECS[packingData.containerType].internal;
+      const containerMaxWeight = CONTAINER_SPECS[packingData.containerType].maxWeight;
+      
+      const result = await apiService.calculatePacking(
+        category,
+        'container',
+        packingData.palletDimensions,
+        packingData.palletWeight,
+        containerDims,
+        containerMaxWeight
+      );
+      
+      setPackingResult(result);
+      setShowViewer(true);
+    } catch (error) {
+      console.error('Packing calculation error:', error);
+      alert('Error calculating packing. Please try again.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const currentContainer = CONTAINER_SPECS[packingData.containerType];
@@ -235,7 +231,7 @@ const ContainerTab: React.FC<ContainerTabProps> = ({ category }) => {
               {/* Statistics */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-purple-50 rounded-xl p-6 border border-purple-200">
-                  <div className="text-3xl font-bold text-purple-700 mb-2">{packingResult.maxPallets}</div>
+                  <div className="text-3xl font-bold text-purple-700 mb-2">{packingResult.maxUnits}</div>
                   <div className="text-purple-600">Pallets</div>
                 </div>
                 <div className="bg-blue-50 rounded-xl p-6 border border-blue-200">
@@ -249,15 +245,15 @@ const ContainerTab: React.FC<ContainerTabProps> = ({ category }) => {
                 <h4 className="text-lg font-semibold text-gray-800 mb-4">Loading Arrangement</h4>
                 <div className="grid grid-cols-3 gap-4">
                   <div className="text-center p-3 bg-gray-50 rounded-lg">
-                    <div className="text-2xl font-bold text-gray-700">{packingResult.arrangement.rows}</div>
+                    <div className="text-2xl font-bold text-gray-700">{Math.ceil(Math.sqrt(packingResult.maxUnits))}</div>
                     <div className="text-sm text-gray-600">Rows</div>
                   </div>
                   <div className="text-center p-3 bg-gray-50 rounded-lg">
-                    <div className="text-2xl font-bold text-gray-700">{packingResult.arrangement.columns}</div>
+                    <div className="text-2xl font-bold text-gray-700">{Math.ceil(Math.sqrt(packingResult.maxUnits))}</div>
                     <div className="text-sm text-gray-600">Columns</div>
                   </div>
                   <div className="text-center p-3 bg-gray-50 rounded-lg">
-                    <div className="text-2xl font-bold text-gray-700">{packingResult.arrangement.layers}</div>
+                    <div className="text-2xl font-bold text-gray-700">{Math.ceil(packingResult.maxUnits / 4)}</div>
                     <div className="text-sm text-gray-600">Layers</div>
                   </div>
                 </div>

@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Upload, Play, RotateCw, Eye, MessageSquare, Package } from 'lucide-react';
+import { Upload, Play, RotateCw, Eye, MessageSquare, Package, Bot } from 'lucide-react';
 import { CategoryType } from '../../App';
 import ThreeDViewer from '../ThreeDViewer';
-import { calculateMasterCartonPacking } from '../../utils/packingAlgorithms';
+import { apiService, PackingResult } from '../../services/api';
+import AIChat from '../AIChat';
 
 interface MasterCartonTabProps {
   category: CategoryType;
@@ -17,14 +18,6 @@ interface PackingData {
   productImage?: string;
 }
 
-interface PackingResult {
-  maxUnits: number;
-  totalWeight: number;
-  spaceUtilization: number;
-  weightUtilization: number;
-  positions: Array<{ x: number; y: number; z: number; rotation: { x: number; y: number; z: number } }>;
-}
-
 const MasterCartonTab: React.FC<MasterCartonTabProps> = ({ category }) => {
   const [packingData, setPackingData] = useState<PackingData>({
     unitDimensions: { length: 0, width: 0, height: 0 },
@@ -37,6 +30,7 @@ const MasterCartonTab: React.FC<MasterCartonTabProps> = ({ category }) => {
   const [packingResult, setPackingResult] = useState<PackingResult | null>(null);
   const [showViewer, setShowViewer] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showAIChat, setShowAIChat] = useState(false);
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -57,19 +51,24 @@ const MasterCartonTab: React.FC<MasterCartonTabProps> = ({ category }) => {
     
     setIsProcessing(true);
     
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    const result = calculateMasterCartonPacking(
-      packingData.unitDimensions,
-      packingData.unitWeight,
-      packingData.masterCartonDimensions,
-      packingData.masterCartonMaxWeight
-    );
-    
-    setPackingResult(result);
-    setShowViewer(true);
-    setIsProcessing(false);
+    try {
+      const result = await apiService.calculatePacking(
+        category,
+        'carton',
+        packingData.unitDimensions,
+        packingData.unitWeight,
+        packingData.masterCartonDimensions,
+        packingData.masterCartonMaxWeight
+      );
+      
+      setPackingResult(result);
+      setShowViewer(true);
+    } catch (error) {
+      console.error('Packing calculation error:', error);
+      alert('Error calculating packing. Please try again.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (
@@ -309,7 +308,31 @@ const MasterCartonTab: React.FC<MasterCartonTabProps> = ({ category }) => {
               )}
 
               {/* AI Suggestions */}
-              <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6 border border-purple-200">
+              {packingResult.aiSuggestions && (
+                <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6 border border-purple-200">
+                  <div className="flex items-center space-x-3 mb-4">
+                    <MessageSquare className="w-6 h-6 text-purple-600" />
+                    <h4 className="text-lg font-semibold text-gray-800">AI Optimization Suggestions</h4>
+                  </div>
+                  <div className="space-y-3">
+                    {packingResult.aiSuggestions.suggestions.map((suggestion, index) => (
+                      <div key={index} className="bg-white rounded-lg p-4">
+                        <h5 className="font-semibold text-gray-800 mb-2">{suggestion.title}</h5>
+                        <p className="text-gray-600 text-sm">{suggestion.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  <button className="mt-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-purple-700 hover:to-pink-700 transition-all duration-200 flex items-center space-x-2">
+                    <MessageSquare className="w-5 h-5" />
+                    <span onClick={() => setShowAIChat(true)}>Ask AI More Questions</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Fallback AI Suggestions */}
+              {!packingResult.aiSuggestions && (
+                <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6 border border-purple-200">
                 <div className="flex items-center space-x-3 mb-4">
                   <MessageSquare className="w-6 h-6 text-purple-600" />
                   <h4 className="text-lg font-semibold text-gray-800">AI Optimization Suggestions</h4>
@@ -333,9 +356,10 @@ const MasterCartonTab: React.FC<MasterCartonTabProps> = ({ category }) => {
                 
                 <button className="mt-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-lg font-semibold hover:from-purple-700 hover:to-pink-700 transition-all duration-200 flex items-center space-x-2">
                   <MessageSquare className="w-5 h-5" />
-                  <span>Ask AI More Questions</span>
+                  <span onClick={() => setShowAIChat(true)}>Ask AI More Questions</span>
                 </button>
               </div>
+              )}
             </div>
           ) : (
             <div className="bg-gray-50 rounded-xl p-12 text-center">
@@ -346,6 +370,12 @@ const MasterCartonTab: React.FC<MasterCartonTabProps> = ({ category }) => {
           )}
         </div>
       </div>
+      
+      <AIChat
+        context={{ packingData, packingResult, category }}
+        isOpen={showAIChat}
+        onClose={() => setShowAIChat(false)}
+      />
     </div>
   );
 };

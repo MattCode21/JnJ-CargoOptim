@@ -4,7 +4,7 @@ import { useDropzone } from 'react-dropzone';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { CategoryType } from '../App';
-import { calculateOptimalPacking } from '../utils/packingAlgorithms';
+import { apiService } from '../services/api';
 
 interface ExcelUploadProps {
   category: CategoryType;
@@ -71,37 +71,16 @@ const ExcelUpload: React.FC<ExcelUploadProps> = ({ category }) => {
   const processData = async () => {
     setIsProcessing(true);
     
-    // Simulate processing with packing algorithm
-    const processedData = await Promise.all(
-      uploadedData.map(async (item) => {
-        // Parse dimensions
-        const tileDims = parseDimensions(item.tileDimensions);
-        const cartonDims = parseDimensions(item.masterCartonDimensions);
-        const palletDims = parseDimensions(item.palletDimensions);
-        
-        // Calculate optimal packing
-        const packingResult = calculateOptimalPacking(
-          tileDims,
-          cartonDims,
-          palletDims,
-          item.tileWeight,
-          item.masterCartonWeight,
-          item.palletWeight
-        );
-        
-        return {
-          ...item,
-          maxTilesInCarton: packingResult.maxTilesInCarton,
-          maxPacksInPallet: packingResult.maxPacksInPallet,
-          maxPalletsIn20ft: packingResult.maxPalletsIn20ft,
-          maxPalletsIn40ft: packingResult.maxPalletsIn40ft,
-        };
-      })
-    );
-    
-    setUploadedData(processedData);
-    setIsProcessing(false);
-    setIsProcessed(true);
+    try {
+      const processedData = await apiService.processExcelData(category, uploadedData);
+      setUploadedData(processedData);
+      setIsProcessed(true);
+    } catch (error) {
+      console.error('Processing error:', error);
+      alert('Error processing data. Please try again.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const downloadResults = () => {

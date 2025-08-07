@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Grid3x3, Hammer, Plus, Package } from 'lucide-react';
 import { CategoryType } from '../App';
+import { apiService } from '../services/api';
 
 interface MainMenuProps {
   onCategorySelect: (category: CategoryType | string) => void;
@@ -14,7 +15,14 @@ const MainMenu: React.FC<MainMenuProps> = ({ onCategorySelect, onAddCustomCatego
 
   const handleAddCategory = () => {
     if (newCategoryName.trim()) {
-      onAddCustomCategory(newCategoryName.trim());
+      apiService.addCustomCategory(newCategoryName.trim())
+        .then(() => {
+          onAddCustomCategory(newCategoryName.trim());
+        })
+        .catch(error => {
+          console.error('Error adding category:', error);
+          alert('Error adding category. Please try again.');
+        });
       setNewCategoryName('');
       setShowAddForm(false);
     }

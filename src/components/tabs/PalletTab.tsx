@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Play, Layers, Eye, MessageSquare } from 'lucide-react';
 import { CategoryType } from '../../App';
 import ThreeDViewer from '../ThreeDViewer';
-import { calculatePalletPacking } from '../../utils/packingAlgorithms';
+import { apiService, PackingResult } from '../../services/api';
 
 interface PalletTabProps {
   category: CategoryType;
@@ -16,15 +16,6 @@ interface PalletPackingData {
   unit: string;
 }
 
-interface PalletPackingResult {
-  maxCartons: number;
-  totalWeight: number;
-  spaceUtilization: number;
-  weightUtilization: number;
-  positions: Array<{ x: number; y: number; z: number; rotation: { x: number; y: number; z: number } }>;
-  layers: number;
-}
-
 const PalletTab: React.FC<PalletTabProps> = ({ category }) => {
   const [packingData, setPackingData] = useState<PalletPackingData>({
     masterCartonDimensions: { length: 0, width: 0, height: 0 },
@@ -34,7 +25,7 @@ const PalletTab: React.FC<PalletTabProps> = ({ category }) => {
     unit: 'cm'
   });
   
-  const [packingResult, setPackingResult] = useState<PalletPackingResult | null>(null);
+  const [packingResult, setPackingResult] = useState<PackingResult | null>(null);
   const [showViewer, setShowViewer] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -43,19 +34,24 @@ const PalletTab: React.FC<PalletTabProps> = ({ category }) => {
     
     setIsProcessing(true);
     
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    const result = calculatePalletPacking(
-      packingData.masterCartonDimensions,
-      packingData.masterCartonWeight,
-      packingData.palletDimensions,
-      packingData.palletMaxWeight
-    );
-    
-    setPackingResult(result);
-    setShowViewer(true);
-    setIsProcessing(false);
+    try {
+      const result = await apiService.calculatePacking(
+        category,
+        'pallet',
+        packingData.masterCartonDimensions,
+        packingData.masterCartonWeight,
+        packingData.palletDimensions,
+        packingData.palletMaxWeight
+      );
+      
+      setPackingResult(result);
+      setShowViewer(true);
+    } catch (error) {
+      console.error('Packing calculation error:', error);
+      alert('Error calculating packing. Please try again.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (
@@ -240,11 +236,11 @@ const PalletTab: React.FC<PalletTabProps> = ({ category }) => {
               {/* Statistics */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-green-50 rounded-xl p-6 border border-green-200">
-                  <div className="text-3xl font-bold text-green-700 mb-2">{packingResult.maxCartons}</div>
+                  <div className="text-3xl font-bold text-green-700 mb-2">{packingResult.maxUnits}</div>
                   <div className="text-green-600">Master Cartons</div>
                 </div>
                 <div className="bg-blue-50 rounded-xl p-6 border border-blue-200">
-                  <div className="text-3xl font-bold text-blue-700 mb-2">{packingResult.layers}</div>
+                  <div className="text-3xl font-bold text-blue-700 mb-2">{Math.ceil(packingResult.maxUnits / 4)}</div>
                   <div className="text-blue-600">Layers</div>
                 </div>
               </div>
